@@ -1,0 +1,74 @@
+import numpy as np
+from sklearn.linear_model import LinearRegression
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Create data for three groups
+# For this example, we'll create data such that pooled coefficient < min(individual coefficients)
+
+# Number of observations per group
+n = 20
+
+# Group 1: positive correlation with moderate x values
+x1 = np.random.uniform(1, 3, n).reshape(-1, 1)
+beta1 = 2.0
+y1 = beta1 * x1 + np.random.normal(0, 0.5, n).reshape(-1, 1)
+
+# Group 2: positive correlation with larger x values
+x2 = np.random.uniform(8, 10, n).reshape(-1, 1)
+beta2 = 1.5
+y2 = beta2 * x2 + np.random.normal(0, 0.5, n).reshape(-1, 1)
+
+# Group 3: positive correlation with small x values
+x3 = np.random.uniform(0.1, 0.5, n).reshape(-1, 1)
+beta3 = 3.0
+y3 = beta3 * x3 + np.random.normal(0, 0.1, n).reshape(-1, 1)
+
+# Individual group regressions (without intercept)
+lr1 = LinearRegression(fit_intercept=False)
+lr2 = LinearRegression(fit_intercept=False)
+lr3 = LinearRegression(fit_intercept=False)
+
+lr1.fit(x1, y1)
+lr2.fit(x2, y2)
+lr3.fit(x3, y3)
+
+beta1_est = lr1.coef_[0][0]
+beta2_est = lr2.coef_[0][0]
+beta3_est = lr3.coef_[0][0]
+
+# Pooled regression (without intercept)
+x_pooled = np.vstack([x1, x2, x3])
+y_pooled = np.vstack([y1, y2, y3])
+
+lr_pooled = LinearRegression(fit_intercept=False)
+lr_pooled.fit(x_pooled, y_pooled)
+beta_pooled = lr_pooled.coef_[0][0]
+
+# Print results
+print(f"Group 1 coefficient (beta1): {beta1_est:.4f}")
+print(f"Group 2 coefficient (beta2): {beta2_est:.4f}")
+print(f"Group 3 coefficient (beta3): {beta3_est:.4f}")
+print(f"Minimum of individual coefficients: {min(beta1_est, beta2_est, beta3_est):.4f}")
+print(f"Pooled coefficient: {beta_pooled:.4f}")
+
+# Let's explain why this happens by examining the data structure
+mean_x1 = np.mean(x1)
+mean_x2 = np.mean(x2)
+mean_x3 = np.mean(x3)
+mean_y1 = np.mean(y1)
+mean_y2 = np.mean(y2)
+mean_y3 = np.mean(y3)
+
+print("\nGroup means:")
+print(f"Group 1: mean(x) = {mean_x1:.4f}, mean(y) = {mean_y1:.4f}, ratio = {mean_y1/mean_x1:.4f}")
+print(f"Group 2: mean(x) = {mean_x2:.4f}, mean(y) = {mean_y2:.4f}, ratio = {mean_y2/mean_x2:.4f}")
+print(f"Group 3: mean(x) = {mean_x3:.4f}, mean(y) = {mean_y3:.4f}, ratio = {mean_y3/mean_x3:.4f}")
+
+# Calculate weighted sum to verify pooled coefficient
+total_x_squared = np.sum(x1**2) + np.sum(x2**2) + np.sum(x3**2)
+total_xy = np.sum(x1*y1) + np.sum(x2*y2) + np.sum(x3*y3)
+calculated_pooled_beta = total_xy / total_x_squared
+
+print(f"\nManually calculated pooled coefficient: {calculated_pooled_beta:.4f}")
