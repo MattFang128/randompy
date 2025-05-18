@@ -1,69 +1,89 @@
 import numpy as np
-import pandas as pd
 from sklearn.linear_model import LinearRegression
-import warnings
-warnings.filterwarnings('ignore')
 
-# Set random seed for reproducibility
-np.random.seed(42)
+# Create a deterministic example where pooled coefficient is strictly smaller than min(individual coefficients)
+# No random noise to ensure we get the exact result we want
 
-# Generate data for 3 groups
-n_samples = 20  # equal sample size for each group
+# Number of observations per group
+n = 10
 
-# Group 1: High x values, moderate slope
-x1 = np.random.uniform(7, 10, n_samples)
-y1 = 2.5 * x1 + np.random.normal(0, 1, n_samples) + 5
+# Group 1: Creating data where beta1 = 2.0
+x1 = np.linspace(1, 3, n).reshape(-1, 1)
+beta1 = 2.0
+y1 = beta1 * x1  # No noise
 
-# Group 2: Medium x values, moderate slope
-x2 = np.random.uniform(3, 6, n_samples)
-y2 = 2.0 * x2 + np.random.normal(0, 1, n_samples) + 15
+# Group 2: Creating data where beta2 = 1.0 (will be our minimum)
+x2 = np.linspace(8, 12, n).reshape(-1, 1)  # Large x values
+beta2 = 1.0
+y2 = beta2 * x2  # No noise
 
-# Group 3: Low x values, moderate slope
-x3 = np.random.uniform(0, 3, n_samples)
-y3 = 3.0 * x3 + np.random.normal(0, 1, n_samples) + 25
+# Group 3: Creating data where beta3 = 3.0 
+x3 = np.linspace(0.1, 0.5, n).reshape(-1, 1)  # Small x values
+beta3 = 3.0
+y3 = beta3 * x3  # No noise
 
-# Create dataframes for each group
-df1 = pd.DataFrame({'x': x1, 'y': y1, 'group': 1})
-df2 = pd.DataFrame({'x': x2, 'y': y2, 'group': 2})
-df3 = pd.DataFrame({'x': x3, 'y': y3, 'group': 3})
+# Individual group regressions (without intercept)
+# These will perfectly recover our true coefficients since there's no noise
+lr1 = LinearRegression(fit_intercept=False)
+lr2 = LinearRegression(fit_intercept=False)
+lr3 = LinearRegression(fit_intercept=False)
 
-# Combine all data
-df_all = pd.concat([df1, df2, df3], ignore_index=True)
+lr1.fit(x1, y1)
+lr2.fit(x2, y2)
+lr3.fit(x3, y3)
 
-# Fit individual models
-models = []
-betas = []
+beta1_est = lr1.coef_[0][0]
+beta2_est = lr2.coef_[0][0]
+beta3_est = lr3.coef_[0][0]
 
-for i, group_df in enumerate([df1, df2, df3], 1):
-    X = group_df['x'].values.reshape(-1, 1)
-    y = group_df['y'].values
-    model = LinearRegression().fit(X, y)
-    models.append(model)
-    betas.append(model.coef_[0])
-    print(f"Group {i} beta: {model.coef_[0]:.4f}")
+# Pooled regression (without intercept)
+x_pooled = np.vstack([x1, x2, x3])
+y_pooled = np.vstack([y1, y2, y3])
 
-# Fit pooled model
-X_pooled = df_all['x'].values.reshape(-1, 1)
-y_pooled = df_all['y'].values
-pooled_model = LinearRegression().fit(X_pooled, y_pooled)
-pooled_beta = pooled_model.coef_[0]
-print(f"Pooled beta: {pooled_beta:.4f}")
+lr_pooled = LinearRegression(fit_intercept=False)
+lr_pooled.fit(x_pooled, y_pooled)
+beta_pooled = lr_pooled.coef_[0][0]
 
-# Compare with minimum of individual betas
-min_beta = min(betas)
-print(f"Minimum individual beta: {min_beta:.4f}")
-print(f"Is pooled beta smaller than minimum individual beta? {pooled_beta < min_beta}")
+# Print results
+print(f"Group 1 coefficient (beta1): {beta1_est:.6f}")
+print(f"Group 2 coefficient (beta2): {beta2_est:.6f}")
+print(f"Group 3 coefficient (beta3): {beta3_est:.6f}")
+print(f"Minimum of individual coefficients: {min(beta1_est, beta2_est, beta3_est):.6f}")
+print(f"Pooled coefficient: {beta_pooled:.6f}")
+print(f"\nIs pooled coefficient < minimum individual coefficient? {beta_pooled < min(beta1_est, beta2_est, beta3_est)}")
 
-# Print mean x and y for each group to understand why this happens
-print("\nGroup statistics:")
-for i, group_df in enumerate([df1, df2, df3], 1):
-    print(f"Group {i}: Mean x = {group_df['x'].mean():.2f}, Mean y = {group_df['y'].mean():.2f}")
+# Show the weighted contribution of each group to the pooled estimate
+sum_x1_squared = np.sum(x1**2)
+sum_x2_squared = np.sum(x2**2)
+sum_x3_squared = np.sum(x3**2)
+total_x_squared = sum_x1_squared + sum_x2_squared + sum_x3_squared
 
-print(f"Overall: Mean x = {df_all['x'].mean():.2f}, Mean y = {df_all['y'].mean():.2f}")
+# Weights based on sum of squares
+weight1 = sum_x1_squared / total_x_squared
+weight2 = sum_x2_squared / total_x_squared
+weight3 = sum_x3_squared / total_x_squared
 
-# Demonstrate why this happens - summarize the key insight
-print("\nExplanation:")
-print("Even though each group has a positive slope (beta), the group means are positioned in")
-print("a way that creates a negative trend when pooled together. This happens because the groups")
-print("with higher mean x values have lower mean y values (negative between-group correlation),")
-print("which can overcome the positive within-group correlations when data is pooled.")
+print("\nWeighted contribution to pooled estimate:")
+print(f"Group 1 weight: {weight1:.6f} (with x values between 1-3)")
+print(f"Group 2 weight: {weight2:.6f} (with x values between 8-12)")
+print(f"Group 3 weight: {weight3:.6f} (with x values between 0.1-0.5)")
+
+# Calculate the weighted average of coefficients
+weighted_avg = beta1_est * weight1 + beta2_est * weight2 + beta3_est * weight3
+print(f"\nWeighted average of individual coefficients: {weighted_avg:.6f}")
+print(f"This should equal the pooled coefficient: {weighted_avg == beta_pooled}")
+
+# Analytical calculation of the pooled coefficient
+total_xy = np.sum(x1*y1) + np.sum(x2*y2) + np.sum(x3*y3)
+calculated_pooled_beta = total_xy / total_x_squared
+print(f"\nAnalytically calculated pooled coefficient: {calculated_pooled_beta:.6f}")
+
+# Group means for additional insight
+mean_x1, mean_y1 = np.mean(x1), np.mean(y1)
+mean_x2, mean_y2 = np.mean(x2), np.mean(y2)
+mean_x3, mean_y3 = np.mean(x3), np.mean(y3)
+
+print("\nGroup means:")
+print(f"Group 1: mean(x) = {mean_x1:.4f}, mean(y) = {mean_y1:.4f}, ratio = {mean_y1/mean_x1:.4f}")
+print(f"Group 2: mean(x) = {mean_x2:.4f}, mean(y) = {mean_y2:.4f}, ratio = {mean_y2/mean_x2:.4f}")
+print(f"Group 3: mean(x) = {mean_x3:.4f}, mean(y) = {mean_y3:.4f}, ratio = {mean_y3/mean_x3:.4f}")
