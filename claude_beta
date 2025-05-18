@@ -1,0 +1,69 @@
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set random seed for reproducibility
+np.random.seed(42)
+
+# Generate data for 3 groups
+n_samples = 20  # equal sample size for each group
+
+# Group 1: High x values, moderate slope
+x1 = np.random.uniform(7, 10, n_samples)
+y1 = 2.5 * x1 + np.random.normal(0, 1, n_samples) + 5
+
+# Group 2: Medium x values, moderate slope
+x2 = np.random.uniform(3, 6, n_samples)
+y2 = 2.0 * x2 + np.random.normal(0, 1, n_samples) + 15
+
+# Group 3: Low x values, moderate slope
+x3 = np.random.uniform(0, 3, n_samples)
+y3 = 3.0 * x3 + np.random.normal(0, 1, n_samples) + 25
+
+# Create dataframes for each group
+df1 = pd.DataFrame({'x': x1, 'y': y1, 'group': 1})
+df2 = pd.DataFrame({'x': x2, 'y': y2, 'group': 2})
+df3 = pd.DataFrame({'x': x3, 'y': y3, 'group': 3})
+
+# Combine all data
+df_all = pd.concat([df1, df2, df3], ignore_index=True)
+
+# Fit individual models
+models = []
+betas = []
+
+for i, group_df in enumerate([df1, df2, df3], 1):
+    X = group_df['x'].values.reshape(-1, 1)
+    y = group_df['y'].values
+    model = LinearRegression().fit(X, y)
+    models.append(model)
+    betas.append(model.coef_[0])
+    print(f"Group {i} beta: {model.coef_[0]:.4f}")
+
+# Fit pooled model
+X_pooled = df_all['x'].values.reshape(-1, 1)
+y_pooled = df_all['y'].values
+pooled_model = LinearRegression().fit(X_pooled, y_pooled)
+pooled_beta = pooled_model.coef_[0]
+print(f"Pooled beta: {pooled_beta:.4f}")
+
+# Compare with minimum of individual betas
+min_beta = min(betas)
+print(f"Minimum individual beta: {min_beta:.4f}")
+print(f"Is pooled beta smaller than minimum individual beta? {pooled_beta < min_beta}")
+
+# Print mean x and y for each group to understand why this happens
+print("\nGroup statistics:")
+for i, group_df in enumerate([df1, df2, df3], 1):
+    print(f"Group {i}: Mean x = {group_df['x'].mean():.2f}, Mean y = {group_df['y'].mean():.2f}")
+
+print(f"Overall: Mean x = {df_all['x'].mean():.2f}, Mean y = {df_all['y'].mean():.2f}")
+
+# Demonstrate why this happens - summarize the key insight
+print("\nExplanation:")
+print("Even though each group has a positive slope (beta), the group means are positioned in")
+print("a way that creates a negative trend when pooled together. This happens because the groups")
+print("with higher mean x values have lower mean y values (negative between-group correlation),")
+print("which can overcome the positive within-group correlations when data is pooled.")
